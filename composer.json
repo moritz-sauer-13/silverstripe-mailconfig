@@ -8,7 +8,8 @@
     }
   ],
   "require":{
-    "silverstripe/recipe-cms": "^5"
+    "silverstripe/recipe-cms": "^5",
+    "lekoala/silverstripe-cms-actions": "^1.4"
   },
   "autoload": {
     "psr-4": {
