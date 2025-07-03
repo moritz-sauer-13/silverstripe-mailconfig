@@ -1,0 +1,7 @@
+---
+Name: mailconfigextensions
+---
+
+SilverStripe\SiteConfig\SiteConfig:
+  extensions:
+    - MailConfig\Extensions\SiteConfigMailExtension

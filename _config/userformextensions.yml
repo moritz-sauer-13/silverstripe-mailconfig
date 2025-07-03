@@ -1,0 +1,8 @@
+---
+Name: mailconfigextensions-userforms
+Only:
+  moduleexists: 'silverstripe/userforms'
+---
+SilverStripe\UserForms\Model\Recipient\EmailRecipient:
+  extensions:
+    - MailConfig\Extensions\EmailRecipientExtension

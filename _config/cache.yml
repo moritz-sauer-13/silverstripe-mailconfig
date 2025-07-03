@@ -1,0 +1,9 @@
+---
+Name: subsitemailcache
+---
+
+SilverStripe\Core\Injector\Injector:
+  Psr\SimpleCache\CacheInterface.MailConfigCache:
+    factory: SilverStripe\Core\Cache\CacheFactory
+    constructor:
+      namespace: "MailConfig"

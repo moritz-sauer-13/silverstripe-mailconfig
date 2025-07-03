@@ -1,0 +1,18 @@
+---
+Name: emailconfig
+After:
+  - 'mailer'
+---
+SilverStripe\Core\Injector\Injector:
+  Symfony\Component\Mailer\Transport\TransportInterface:
+    factory: 'MailConfig\Services\CustomMailTransportProvider'
+  SilverStripe\Control\Email\Email:
+    class: MailConfig\Injectors\EmailInjector
+SilverStripe\Control\Email\Email:
+  smtp_server: ''
+  smtp_port:
+  smtp_user: ''
+  smtp_password: ''
+  admin_email: ''
+  admin_name: ''
+  custom_dsn: ''
