@@ -1,13 +1,13 @@
 {
-  "name":"moritz-sauer-13/silverstripe-mailconfig",
+  "name": "moritz-sauer-13/silverstripe-mailconfig",
   "description": "Silverstripe Mail Configuration via CMS",
   "authors": [
     {
-      "name":"Moritz Sauer",
+      "name": "Moritz Sauer",
       "email": "ms@tietge.com"
     }
   ],
-  "require":{
+  "require": {
     "silverstripe/recipe-cms": "^5",
     "lekoala/silverstripe-cms-actions": "^1.4"
   },

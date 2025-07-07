@@ -237,10 +237,19 @@ class SiteConfigMailExtension extends Extension implements Flushable
             'CustomDSN'    => $finalConfig ? $finalConfig->CustomDSN : null,
         ];
 
+        // Funktion zur Überprüfung, ob irgendeine SMTP-Konfiguration vorhanden ist
+        $hasAnyConfig = function ($config) {
+            return !empty($config['SMTPServer']) 
+                || !empty($config['SMTPUser']) 
+                || !empty($config['SMTPPassword']) 
+                || !empty($config['SMTPPort']);
+        };
+
         if(!$isComplete(ArrayData::create($config))){
             if(Email::Config()->custom_dsn){
                 $config['CustomDSN'] = Email::Config()->custom_dsn;
-            } else {
+            } else if($hasAnyConfig($config)) {
+                // Nur Exception werfen, wenn teilweise konfiguriert (nicht wenn komplett leer)
                 throw new Exception('SMTP-Konfiguration ist unvollständig.');
             }
         }
