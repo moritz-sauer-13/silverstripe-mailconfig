@@ -1,6 +1,7 @@
 {
   "name": "moritz-sauer-13/silverstripe-mailconfig",
   "description": "Silverstripe Mail Configuration via CMS",
+  "type": "silverstripe-vendormodule",
   "authors": [
     {
       "name": "Moritz Sauer",
