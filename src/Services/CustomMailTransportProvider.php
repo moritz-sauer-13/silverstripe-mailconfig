@@ -24,6 +24,16 @@ class CustomMailTransportProvider implements Factory
             return Transport::fromDsn($mailConfig['CustomDSN']);
         }
 
+        // Check if we have valid SMTP configuration before building the DSN
+        if(empty($mailConfig['SMTPServer']) ||
+            empty($mailConfig['SMTPUser']) ||
+            empty($mailConfig['SMTPPassword']) ||
+            empty($mailConfig['SMTPPort']) ||
+            $mailConfig['SMTPPort'] === 0) {
+            // Return null transport when no valid SMTP configuration is available
+            return Transport::fromDsn('null://null');
+        }
+
         // SMTP-DSN für Symfony Mailer erstellen
         $dsn = sprintf(
             'smtp://%s:%s@%s:%d',
