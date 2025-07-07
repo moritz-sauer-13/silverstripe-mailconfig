@@ -37,6 +37,12 @@ class SiteConfigMailExtension extends Extension implements Flushable
         'TestEmail'    => 'Text', // Temporäre Test-E-Mail-Adresse
     ];
 
+    /**
+     * Fügt die E-Mail-Einstellungen zum CMS hinzu
+     * 
+     * @param FieldList $fields Die Liste der CMS-Felder
+     * @return void
+     */
     public function updateCMSFields(FieldList $fields): void
     {
         $fields->addFieldToTab('Root', Tab::create('EmailSettings', 'Email Einstellungen'));
@@ -62,8 +68,11 @@ class SiteConfigMailExtension extends Extension implements Flushable
 
     /**
      * Fügt die CMS Action für den Button "Test-E-Mail senden" hinzu.
+     * 
+     * @param FieldList $actions Die Liste der CMS-Aktionen
+     * @return void
      */
-    public function updateCMSActions(FieldList $actions)
+    public function updateCMSActions(FieldList $actions): void
     {
         if($this->owner->TestEmail){
             $actions->push(
@@ -76,8 +85,10 @@ class SiteConfigMailExtension extends Extension implements Flushable
 
     /**
      * Wird aufgerufen, wenn der Button "Test-E-Mail senden" im CMS geklickt wird.
+     * 
+     * @return string Statusmeldung über Erfolg oder Fehler
      */
-    public function doSendTestEmail()
+    public function doSendTestEmail(): string
     {
         $siteConfig = $this->owner;
         $testEmail = $siteConfig->TestEmail;
@@ -85,6 +96,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
         if (empty($testEmail)) {
             return 'Bitte eine Test-E-Mail-Adresse eingeben.';
         }
+
         if(!Email::is_valid_address($testEmail)){
             return 'Ungültige E-Mail-Adresse.';
         }
@@ -92,54 +104,82 @@ class SiteConfigMailExtension extends Extension implements Flushable
         try {
             $mailConfig = self::getEffectiveMailConfig();
 
+            if (empty($mailConfig['AdminEmail'])) {
+                return 'Fehler: Keine Absender-E-Mail-Adresse konfiguriert.';
+            }
+
             $email = Email::create()
                 ->setTo($testEmail)
                 ->setFrom($mailConfig['AdminEmail'], $mailConfig['AdminName'])
                 ->setSubject('Mail Test - ' . $siteConfig->Title)
                 ->setBody('Der Mailtest war erfolgreich.');
 
-            $email->send();
+            $result = $email->send();
 
-        } catch (\Exception $e) {
+            if (!$result) {
+                return 'E-Mail konnte nicht gesendet werden. Bitte überprüfen Sie die SMTP-Einstellungen.';
+            }
+
+        } catch (Exception $e) {
             return 'Fehler beim Senden: ' . $e->getMessage();
         } catch (NotFoundExceptionInterface $e) {
-            return 'Fehler beim Senden: ' . $e->getMessage();
+            return 'Fehler bei der Konfiguration: ' . $e->getMessage();
+        } catch (\Throwable $e) {
+            // Fange alle anderen möglichen Fehler ab
+            return 'Unerwarteter Fehler: ' . $e->getMessage();
         }
 
-        return 'Test-E-Mail wurde versendet.';
+        return 'Test-E-Mail wurde erfolgreich an ' . $testEmail . ' versendet.';
     }
 
-    /*
-     * Prüft, ob das Passwort validiert werden muss
-     * */
-    public function onBeforeWrite()
+    /**
+     * Prüft, ob das Passwort validiert werden muss und behält das alte Passwort bei,
+     * wenn das Feld leer gelassen wurde
+     * 
+     * @return void
+     */
+    public function onBeforeWrite(): void
     {
         $changedFields = $this->owner->getChangedFields();
         if (array_key_exists('SMTPPassword', $changedFields) && isset($changedFields['SMTPPassword'])) {
-            if($changedFields['SMTPPassword']['after'] == ''){
-                $this->owner->SMTPPassword = Convert::raw2sql($changedFields['SMTPPassword']['before']);
+            // Wenn das Passwortfeld leer ist, behalte das alte Passwort bei
+            if($changedFields['SMTPPassword']['after'] == '' && !empty($changedFields['SMTPPassword']['before'])){
+                $this->owner->SMTPPassword = $changedFields['SMTPPassword']['before'];
             }
         }
     }
 
     /**
      * Löscht den Cache, wenn die SiteConfig geändert wurde
+     * 
+     * @return void
      */
     public function onAfterWrite(): void
     {
-        $cache = Injector::inst()->get(CacheInterface::class . '.MailConfigCache');
-        if($cache){
-            $cache->clear();
+        try {
+            $cache = Injector::inst()->get(CacheInterface::class . '.MailConfigCache');
+            if($cache){
+                $cache->clear();
+            }
+        } catch (\Throwable $e) {
+            // Fehler beim Löschen des Caches ignorieren
         }
     }
 
+    /**
+     * Validiert die SMTP-Konfiguration
+     * 
+     * @param ValidationResult $validationResult Das ValidationResult-Objekt
+     * @return ValidationResult Das aktualisierte ValidationResult-Objekt
+     */
     public function validate(ValidationResult $validationResult): ValidationResult
     {
         if(!$this->owner->CustomDSN){
             $fields = [
                 'SMTPServer',
                 'SMTPUser',
-                'SMTPPort'
+                'SMTPPort',
+                'AdminEmail'
             ];
 
             $hasAnyValue = false;
@@ -180,24 +220,34 @@ class SiteConfigMailExtension extends Extension implements Flushable
      */
     public static function getEffectiveMailConfig(): array
     {
-        $cache = Injector::inst()->get(CacheInterface::class . '.MailConfigCache');
+        try {
+            $cache = Injector::inst()->get(CacheInterface::class . '.MailConfigCache');
 
-        $cacheKey = self::$subsite_cache_key_prefix;
+            // Generiere einen Cache-Key basierend auf der aktuellen Subsite (falls vorhanden)
+            $cacheKey = self::$subsite_cache_key_prefix;
+            $SubsiteID = 0;
 
-        if(class_exists(Subsite::class)){
-            $subsite = Subsite::currentSubsite();
-            $SubsiteID = $subsite ? $subsite->ID : 0;
+            if(class_exists(Subsite::class)){
+                $subsite = Subsite::currentSubsite();
+                $SubsiteID = $subsite ? $subsite->ID : 0;
+                $cacheKey = self::$subsite_cache_key_prefix . $SubsiteID;
+            }
 
-            $cacheKey = self::$subsite_cache_key_prefix . $SubsiteID;
-        }
-
-        // Falls Cache vorhanden, zurückgeben
-        if ($cache && $cache->has($cacheKey)) {
-            return $cache->get($cacheKey);
+            // Falls Cache vorhanden und gültig, zurückgeben
+            if ($cache && $cache->has($cacheKey)) {
+                $cachedConfig = $cache->get($cacheKey);
+                if (is_array($cachedConfig) && !empty($cachedConfig)) {
+                    return $cachedConfig;
+                }
+            }
+        } catch (\Throwable $e) {
+            // Bei Cache-Fehlern: Ignorieren und fortfahren ohne Cache
+            $cache = null;
         }
 
         // Aktuelle SiteConfig holen (Hauptseite oder Subsite)
         $siteConfig = SiteConfig::current_site_config();
+        $mainSiteConfig = null;
 
         if(class_exists(Subsite::class)) {
             // Hauptseiten-SiteConfig holen
@@ -206,11 +256,15 @@ class SiteConfigMailExtension extends Extension implements Flushable
 
         // Funktion zur Überprüfung, ob eine Konfiguration vollständig ist
         $isComplete = function ($config) {
+            if(!$config) {
+                return false;
+            }
+
             if($config->CustomDSN){
                 return true;
             }
-            return $config
-                && !empty($config->SMTPServer)
+
+            return !empty($config->SMTPServer)
                 && !empty($config->SMTPUser)
                 && !empty($config->SMTPPassword)
                 && !empty($config->SMTPPort)
@@ -220,7 +274,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
         // Bestimmen, welche Konfiguration verwendet wird
         if ($isComplete($siteConfig)) {
             $finalConfig = $siteConfig;
-        } elseif (class_exists(Subsite::class) && $isComplete($mainSiteConfig)) {
+        } elseif ($mainSiteConfig && $isComplete($mainSiteConfig)) {
             $finalConfig = $mainSiteConfig;
         } else {
             $finalConfig = null; // Wir fallen auf `mail.yml` zurück
@@ -255,18 +309,32 @@ class SiteConfigMailExtension extends Extension implements Flushable
         }
 
         if($cache){
-            // Speichere neuen Cache für 24h
-            $cache->set($cacheKey, $config, 86400);
+            try {
+                // Speichere neuen Cache für 24h
+                $cache->set($cacheKey, $config, 86400);
+            } catch (\Throwable $e) {
+                // Fehler beim Caching ignorieren - die Konfiguration wird trotzdem zurückgegeben
+            }
         }
 
         return $config;
     }
 
+    /**
+     * Implementierung der Flushable-Schnittstelle
+     * Löscht den Cache beim Flush der Anwendung
+     * 
+     * @return void
+     */
     public static function flush(): void
     {
-        $cache = Injector::inst()->get(CacheInterface::class . '.MailConfigCache');
-        if($cache){
-            $cache->clear();
+        try {
+            $cache = Injector::inst()->get(CacheInterface::class . '.MailConfigCache');
+            if($cache){
+                $cache->clear();
+            }
+        } catch (\Throwable $e) {
+            // Fehler beim Löschen des Caches ignorieren
         }
     }
 }
