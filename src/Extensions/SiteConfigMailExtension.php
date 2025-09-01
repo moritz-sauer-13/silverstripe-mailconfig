@@ -12,6 +12,7 @@ use SilverStripe\Core\Extension;
 use SilverStripe\Core\Flushable;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Dev\Debug;
+use SilverStripe\Forms\LiteralField;
 use SilverStripe\Forms\PasswordField;
 use SilverStripe\Forms\Tab;
 use SilverStripe\Forms\FieldList;
@@ -39,7 +40,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
 
     /**
      * Fügt die E-Mail-Einstellungen zum CMS hinzu
-     * 
+     *
      * @param FieldList $fields Die Liste der CMS-Felder
      * @return void
      */
@@ -68,7 +69,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
 
     /**
      * Fügt die CMS Action für den Button "Test-E-Mail senden" hinzu.
-     * 
+     *
      * @param FieldList $actions Die Liste der CMS-Aktionen
      * @return void
      */
@@ -85,7 +86,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
 
     /**
      * Wird aufgerufen, wenn der Button "Test-E-Mail senden" im CMS geklickt wird.
-     * 
+     *
      * @return string Statusmeldung über Erfolg oder Fehler
      */
     public function doSendTestEmail(): string
@@ -110,15 +111,11 @@ class SiteConfigMailExtension extends Extension implements Flushable
 
             $email = Email::create()
                 ->setTo($testEmail)
-                ->setFrom($mailConfig['AdminEmail'], $mailConfig['AdminName'])
+                ->setFrom($mailConfig['AdminEmail'], isset($mailConfig['AdminName']) ? $mailConfig['AdminName'] : '')
                 ->setSubject('Mail Test - ' . $siteConfig->Title)
                 ->setBody('Der Mailtest war erfolgreich.');
 
-            $result = $email->send();
-
-            if (!$result) {
-                return 'E-Mail konnte nicht gesendet werden. Bitte überprüfen Sie die SMTP-Einstellungen.';
-            }
+            $email->send();
 
         } catch (Exception $e) {
             return 'Fehler beim Senden: ' . $e->getMessage();
@@ -135,7 +132,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
     /**
      * Prüft, ob das Passwort validiert werden muss und behält das alte Passwort bei,
      * wenn das Feld leer gelassen wurde
-     * 
+     *
      * @return void
      */
     public function onBeforeWrite(): void
@@ -151,7 +148,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
 
     /**
      * Löscht den Cache, wenn die SiteConfig geändert wurde
-     * 
+     *
      * @return void
      */
     public function onAfterWrite(): void
@@ -168,7 +165,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
 
     /**
      * Validiert die SMTP-Konfiguration
-     * 
+     *
      * @param ValidationResult $validationResult Das ValidationResult-Objekt
      * @return ValidationResult Das aktualisierte ValidationResult-Objekt
      */
@@ -222,7 +219,6 @@ class SiteConfigMailExtension extends Extension implements Flushable
     {
         try {
             $cache = Injector::inst()->get(CacheInterface::class . '.MailConfigCache');
-
             // Generiere einen Cache-Key basierend auf der aktuellen Subsite (falls vorhanden)
             $cacheKey = self::$subsite_cache_key_prefix;
             $SubsiteID = 0;
@@ -244,7 +240,6 @@ class SiteConfigMailExtension extends Extension implements Flushable
             // Bei Cache-Fehlern: Ignorieren und fortfahren ohne Cache
             $cache = null;
         }
-
         // Aktuelle SiteConfig holen (Hauptseite oder Subsite)
         $siteConfig = SiteConfig::current_site_config();
         $mainSiteConfig = null;
@@ -293,9 +288,9 @@ class SiteConfigMailExtension extends Extension implements Flushable
 
         // Funktion zur Überprüfung, ob irgendeine SMTP-Konfiguration vorhanden ist
         $hasAnyConfig = function ($config) {
-            return !empty($config['SMTPServer']) 
-                || !empty($config['SMTPUser']) 
-                || !empty($config['SMTPPassword']) 
+            return !empty($config['SMTPServer'])
+                || !empty($config['SMTPUser'])
+                || !empty($config['SMTPPassword'])
                 || !empty($config['SMTPPort']);
         };
 
@@ -323,7 +318,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
     /**
      * Implementierung der Flushable-Schnittstelle
      * Löscht den Cache beim Flush der Anwendung
-     * 
+     *
      * @return void
      */
     public static function flush(): void
