@@ -11,6 +11,7 @@ use SilverStripe\Core\Extension;
 use SilverStripe\Core\Flushable;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Core\Validation\ValidationResult;
+use SilverStripe\Forms\FormAction;
 use SilverStripe\Forms\PasswordField;
 use SilverStripe\Forms\Tab;
 use SilverStripe\Forms\FieldList;
@@ -71,6 +72,26 @@ class SiteConfigMailExtension extends Extension implements Flushable
      */
     public function updateCMSActions(FieldList $actions): void
     {
+        // Add default save and delete buttons if they don't exist
+        if (!$actions->dataFieldByName('action_save')) {
+            if ($this->owner->hasMethod('canEdit') && $this->owner->canEdit()) {
+                $actions->push(
+                    FormAction::create('save', _t('SilverStripe\\Admin\\LeftAndMain.SAVE', 'Save'))
+                        ->addExtraClass('btn btn-primary')
+                        ->addExtraClass('font-icon-add-circle')
+                );
+            }
+        }
+
+        if (!$actions->dataFieldByName('action_delete')) {
+            if ($this->owner->hasMethod('canDelete') && $this->owner->canDelete()) {
+                $actions->push(
+                    FormAction::create('delete', _t('SilverStripe\\Admin\\LeftAndMain.DELETE', 'Delete'))
+                        ->addExtraClass('btn btn-secondary')
+                );
+            }
+        }
+
         if($this->owner->TestEmail){
             $actions->push(
                 CustomAction::create('doSendTestEmail', 'Test-E-Mail senden')
