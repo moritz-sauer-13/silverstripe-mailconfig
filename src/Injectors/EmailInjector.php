@@ -4,7 +4,6 @@ namespace MailConfig\Injectors;
 
 use SilverStripe\Control\Email\Email;
 use MailConfig\Extensions\SiteConfigMailExtension;
-use SilverStripe\View\ViewableData;
 
 class EmailInjector extends Email
 {
@@ -27,36 +26,37 @@ class EmailInjector extends Email
         // Falls kein `from` übergeben wurde, setze den Standard-Absender mit Name
         if ($from) {
             $this->setFrom($from);
-        } else {
-            if ($defaultEmail) {
-                // Falls ein Name vorhanden ist, als Array setzen (['Name' => 'Email'])
-                if (!empty($defaultName)) {
-                    $this->setFrom([$defaultEmail => $defaultName]);
-                } else {
-                    $this->setFrom($defaultEmail);
-                }
+        } elseif ($defaultEmail) {
+            // Falls ein Name vorhanden ist, als Array setzen (['Name' => 'Email'])
+            if (!empty($defaultName)) {
+                $this->setFrom([$defaultEmail => $defaultName]);
+            } else {
+                $this->setFrom($defaultEmail);
             }
         }
 
         if ($to) {
             $this->setTo($to);
         }
-        if ($subject) {
+        
+        if ($subject !== '' && $subject !== '0') {
             $this->setSubject($subject);
         }
-        if ($body) {
+        
+        if ($body !== '' && $body !== '0') {
             $this->setBody($body);
         }
+        
         if ($cc) {
             $this->setCC($cc);
         }
+        
         if ($bcc) {
             $this->setBCC($bcc);
         }
-        if ($returnPath) {
+        
+        if ($returnPath !== '' && $returnPath !== '0') {
             $this->setReturnPath($returnPath);
         }
-
-        $this->data = ViewableData::create();
     }
 }

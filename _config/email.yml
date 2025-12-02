@@ -9,6 +9,8 @@ SilverStripe\Core\Injector\Injector:
   SilverStripe\Control\Email\Email:
     class: MailConfig\Injectors\EmailInjector
 SilverStripe\Control\Email\Email:
+  extensions:
+    - EmailMailConfigExtension
   smtp_server: ''
   smtp_port:
   smtp_user: ''

@@ -2,19 +2,19 @@
 
 namespace MailConfig\Services;
 
+use Exception;
 use Psr\Container\NotFoundExceptionInterface;
 use SilverStripe\Core\Injector\Factory;
-use SilverStripe\Dev\Debug;
 use MailConfig\Extensions\SiteConfigMailExtension;
 use Symfony\Component\Mailer\Transport;
 
 class CustomMailTransportProvider implements Factory
 {
     /**
-     * @throws \Exception
+     * @throws Exception
      * @throws NotFoundExceptionInterface
      */
-    public function create($service, array $params = [])
+    public function create($service, array $params = []): ?object
     {
         // Effektive Mail-Konfiguration holen (Subsite oder Fallback)
         $mailConfig = SiteConfigMailExtension::getEffectiveMailConfig();

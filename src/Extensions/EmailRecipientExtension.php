@@ -6,7 +6,7 @@ use SilverStripe\Core\Extension;
 
 class EmailRecipientExtension extends Extension
 {
-    public function populateDefaults()
+    public function populateDefaults(): void
     {
         if($this->owner->EmailFrom == null){
             $mailConfig = SiteConfigMailExtension::getEffectiveMailConfig();
