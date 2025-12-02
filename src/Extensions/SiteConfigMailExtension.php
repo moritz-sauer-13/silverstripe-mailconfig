@@ -7,21 +7,17 @@ use LeKoala\CmsActions\CustomAction;
 use Psr\Container\NotFoundExceptionInterface;
 use Psr\SimpleCache\CacheInterface;
 use SilverStripe\Control\Email\Email;
-use SilverStripe\Core\Convert;
 use SilverStripe\Core\Extension;
 use SilverStripe\Core\Flushable;
 use SilverStripe\Core\Injector\Injector;
-use SilverStripe\Dev\Debug;
-use SilverStripe\Forms\LiteralField;
+use SilverStripe\Core\Validation\ValidationResult;
 use SilverStripe\Forms\PasswordField;
 use SilverStripe\Forms\Tab;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\TextField;
 use SilverStripe\Forms\EmailField;
-use SilverStripe\ORM\ValidationResult;
-use SilverStripe\Subsites\Model\Subsite;
+use SilverStripe\Model\ArrayData;
 use SilverStripe\SiteConfig\SiteConfig;
-use SilverStripe\View\ArrayData;
 
 class SiteConfigMailExtension extends Extension implements Flushable
 {
@@ -223,8 +219,8 @@ class SiteConfigMailExtension extends Extension implements Flushable
             $cacheKey = self::$subsite_cache_key_prefix;
             $SubsiteID = 0;
 
-            if(class_exists(Subsite::class)){
-                $subsite = Subsite::currentSubsite();
+            if(class_exists(SilverStripe\Subsites\Model\Subsite::class)){
+                $subsite = SilverStripe\Subsites\Model\Subsite::currentSubsite();
                 $SubsiteID = $subsite ? $subsite->ID : 0;
                 $cacheKey = self::$subsite_cache_key_prefix . $SubsiteID;
             }
@@ -244,7 +240,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
         $siteConfig = SiteConfig::current_site_config();
         $mainSiteConfig = null;
 
-        if(class_exists(Subsite::class)) {
+        if(class_exists(SilverStripe\Subsites\Model\Subsite::class)) {
             // Hauptseiten-SiteConfig holen
             $mainSiteConfig = SiteConfig::get()->filter('SubsiteID', 0)->first();
         }
