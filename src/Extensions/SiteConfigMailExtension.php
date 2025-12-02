@@ -2,23 +2,26 @@
 
 namespace MailConfig\Extensions;
 
-use Throwable;
 use Exception;
 use LeKoala\CmsActions\CustomAction;
 use Psr\Container\NotFoundExceptionInterface;
 use Psr\SimpleCache\CacheInterface;
 use SilverStripe\Control\Email\Email;
+use SilverStripe\Core\Convert;
 use SilverStripe\Core\Extension;
 use SilverStripe\Core\Flushable;
 use SilverStripe\Core\Injector\Injector;
-use SilverStripe\Core\Validation\ValidationResult;
+use SilverStripe\Dev\Debug;
+use SilverStripe\Forms\LiteralField;
 use SilverStripe\Forms\PasswordField;
 use SilverStripe\Forms\Tab;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\TextField;
 use SilverStripe\Forms\EmailField;
-use SilverStripe\Model\ArrayData;
+use SilverStripe\ORM\ValidationResult;
+use SilverStripe\Subsites\Model\Subsite;
 use SilverStripe\SiteConfig\SiteConfig;
+use SilverStripe\View\ArrayData;
 
 class SiteConfigMailExtension extends Extension implements Flushable
 {
@@ -39,6 +42,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
      * Fügt die E-Mail-Einstellungen zum CMS hinzu
      *
      * @param FieldList $fields Die Liste der CMS-Felder
+     * @return void
      */
     public function updateCMSFields(FieldList $fields): void
     {
@@ -67,6 +71,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
      * Fügt die CMS Action für den Button "Test-E-Mail senden" hinzu.
      *
      * @param FieldList $actions Die Liste der CMS-Aktionen
+     * @return void
      */
     public function updateCMSActions(FieldList $actions): void
     {
@@ -81,7 +86,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
 
     /**
      * Wird aufgerufen, wenn der Button "Test-E-Mail senden" im CMS geklickt wird.
-     * 
+     *
      * @return string Statusmeldung über Erfolg oder Fehler
      */
     public function doSendTestEmail(): string
@@ -106,26 +111,17 @@ class SiteConfigMailExtension extends Extension implements Flushable
 
             $email = Email::create()
                 ->setTo($testEmail)
-                ->setFrom($mailConfig['AdminEmail'], $mailConfig['AdminName'])
+                ->setFrom($mailConfig['AdminEmail'], isset($mailConfig['AdminName']) ? $mailConfig['AdminName'] : '')
                 ->setSubject('Mail Test - ' . $siteConfig->Title)
                 ->setBody('Der Mailtest war erfolgreich.');
 
-            try{
-                $email->send();
-                $result = true;
-            } catch (Exception $e) {
-                $result = false;
-            }
-
-            if (!$result) {
-                return 'E-Mail konnte nicht gesendet werden. Bitte überprüfen Sie die SMTP-Einstellungen.';
-            }
+            $email->send();
 
         } catch (Exception $e) {
             return 'Fehler beim Senden: ' . $e->getMessage();
         } catch (NotFoundExceptionInterface $e) {
             return 'Fehler bei der Konfiguration: ' . $e->getMessage();
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             // Fange alle anderen möglichen Fehler ab
             return 'Unerwarteter Fehler: ' . $e->getMessage();
         }
@@ -136,18 +132,24 @@ class SiteConfigMailExtension extends Extension implements Flushable
     /**
      * Prüft, ob das Passwort validiert werden muss und behält das alte Passwort bei,
      * wenn das Feld leer gelassen wurde
+     *
+     * @return void
      */
     public function onBeforeWrite(): void
     {
         $changedFields = $this->owner->getChangedFields();
-        // Wenn das Passwortfeld leer ist, behalte das alte Passwort bei
-        if (array_key_exists('SMTPPassword', $changedFields) && isset($changedFields['SMTPPassword']) && ($changedFields['SMTPPassword']['after'] == '' && !empty($changedFields['SMTPPassword']['before']))) {
-            $this->owner->SMTPPassword = $changedFields['SMTPPassword']['before'];
+        if (array_key_exists('SMTPPassword', $changedFields) && isset($changedFields['SMTPPassword'])) {
+            // Wenn das Passwortfeld leer ist, behalte das alte Passwort bei
+            if($changedFields['SMTPPassword']['after'] == '' && !empty($changedFields['SMTPPassword']['before'])){
+                $this->owner->SMTPPassword = $changedFields['SMTPPassword']['before'];
+            }
         }
     }
 
     /**
      * Löscht den Cache, wenn die SiteConfig geändert wurde
+     *
+     * @return void
      */
     public function onAfterWrite(): void
     {
@@ -156,14 +158,14 @@ class SiteConfigMailExtension extends Extension implements Flushable
             if($cache){
                 $cache->clear();
             }
-        } catch (Throwable $throwable) {
+        } catch (\Throwable $e) {
             // Fehler beim Löschen des Caches ignorieren
         }
     }
 
     /**
      * Validiert die SMTP-Konfiguration
-     * 
+     *
      * @param ValidationResult $validationResult Das ValidationResult-Objekt
      * @return ValidationResult Das aktualisierte ValidationResult-Objekt
      */
@@ -196,7 +198,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
                 }
 
                 // Falls Felder fehlen, eine Fehlermeldung hinzufügen
-                if ($missingFields !== []) {
+                if (!empty($missingFields)) {
                     $validationResult->addError(
                         'Wenn eine SMTP-Einstellung gesetzt ist, müssen auch die folgenden Felder ausgefüllt werden: ' .
                         implode(', ', $missingFields)
@@ -211,18 +213,18 @@ class SiteConfigMailExtension extends Extension implements Flushable
     /**
      * Gibt die effektiven SMTP-Einstellungen zurück (Subsite-spezifisch, falls notwendig oder Fallback auf Hauptseite & mail.yml)
      * @throws Exception|NotFoundExceptionInterface
+     * @return array
      */
     public static function getEffectiveMailConfig(): array
     {
         try {
             $cache = Injector::inst()->get(CacheInterface::class . '.MailConfigCache');
-
             // Generiere einen Cache-Key basierend auf der aktuellen Subsite (falls vorhanden)
             $cacheKey = self::$subsite_cache_key_prefix;
             $SubsiteID = 0;
 
-            if(class_exists(SilverStripe\Subsites\Model\Subsite::class)){
-                $subsite = SilverStripe\Subsites\Model\Subsite::currentSubsite();
+            if(class_exists(Subsite::class)){
+                $subsite = Subsite::currentSubsite();
                 $SubsiteID = $subsite ? $subsite->ID : 0;
                 $cacheKey = self::$subsite_cache_key_prefix . $SubsiteID;
             }
@@ -230,26 +232,25 @@ class SiteConfigMailExtension extends Extension implements Flushable
             // Falls Cache vorhanden und gültig, zurückgeben
             if ($cache && $cache->has($cacheKey)) {
                 $cachedConfig = $cache->get($cacheKey);
-                if (is_array($cachedConfig) && $cachedConfig !== []) {
+                if (is_array($cachedConfig) && !empty($cachedConfig)) {
                     return $cachedConfig;
                 }
             }
-        } catch (Throwable $throwable) {
+        } catch (\Throwable $e) {
             // Bei Cache-Fehlern: Ignorieren und fortfahren ohne Cache
             $cache = null;
         }
-
         // Aktuelle SiteConfig holen (Hauptseite oder Subsite)
         $siteConfig = SiteConfig::current_site_config();
         $mainSiteConfig = null;
 
-        if(class_exists(SilverStripe\Subsites\Model\Subsite::class)) {
+        if(class_exists(Subsite::class)) {
             // Hauptseiten-SiteConfig holen
             $mainSiteConfig = SiteConfig::get()->filter('SubsiteID', 0)->first();
         }
 
         // Funktion zur Überprüfung, ob eine Konfiguration vollständig ist
-        $isComplete = function ($config): bool {
+        $isComplete = function ($config) {
             if(!$config) {
                 return false;
             }
@@ -286,17 +287,17 @@ class SiteConfigMailExtension extends Extension implements Flushable
         ];
 
         // Funktion zur Überprüfung, ob irgendeine SMTP-Konfiguration vorhanden ist
-        $hasAnyConfig = function (array $config): bool {
-            return !empty($config['SMTPServer']) 
-                || !empty($config['SMTPUser']) 
-                || !empty($config['SMTPPassword']) 
+        $hasAnyConfig = function ($config) {
+            return !empty($config['SMTPServer'])
+                || !empty($config['SMTPUser'])
+                || !empty($config['SMTPPassword'])
                 || !empty($config['SMTPPort']);
         };
 
         if(!$isComplete(ArrayData::create($config))){
-            if (Email::Config()->custom_dsn) {
+            if(Email::Config()->custom_dsn){
                 $config['CustomDSN'] = Email::Config()->custom_dsn;
-            } elseif ($hasAnyConfig($config)) {
+            } else if($hasAnyConfig($config)) {
                 // Nur Exception werfen, wenn teilweise konfiguriert (nicht wenn komplett leer)
                 throw new Exception('SMTP-Konfiguration ist unvollständig.');
             }
@@ -306,7 +307,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
             try {
                 // Speichere neuen Cache für 24h
                 $cache->set($cacheKey, $config, 86400);
-            } catch (Throwable $e) {
+            } catch (\Throwable $e) {
                 // Fehler beim Caching ignorieren - die Konfiguration wird trotzdem zurückgegeben
             }
         }
@@ -317,6 +318,8 @@ class SiteConfigMailExtension extends Extension implements Flushable
     /**
      * Implementierung der Flushable-Schnittstelle
      * Löscht den Cache beim Flush der Anwendung
+     *
+     * @return void
      */
     public static function flush(): void
     {
@@ -325,7 +328,7 @@ class SiteConfigMailExtension extends Extension implements Flushable
             if($cache){
                 $cache->clear();
             }
-        } catch (Throwable $throwable) {
+        } catch (\Throwable $e) {
             // Fehler beim Löschen des Caches ignorieren
         }
     }
